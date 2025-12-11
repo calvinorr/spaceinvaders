@@ -25,6 +25,42 @@ const player = {
     speed: 300
 };
 
+// Invader fleet configuration
+const INVADER_ROWS = 5;
+const INVADER_COLS = 11;
+const INVADER_WIDTH = 40;
+const INVADER_HEIGHT = 30;
+const INVADER_PADDING = 10;
+const INVADER_TOP_OFFSET = 60;
+const INVADER_LEFT_OFFSET = 50;
+const INVADER_DROP_DISTANCE = 20;
+const INVADER_BASE_SPEED = 30;
+
+// Invader fleet state
+const invaders = [];
+let invaderDirection = 1; // 1 = right, -1 = left
+let totalInvaders = INVADER_ROWS * INVADER_COLS;
+let aliveInvaders = totalInvaders;
+
+// Initialize invader fleet
+function initInvaders() {
+    invaders.length = 0;
+    for (let row = 0; row < INVADER_ROWS; row++) {
+        for (let col = 0; col < INVADER_COLS; col++) {
+            invaders.push({
+                x: INVADER_LEFT_OFFSET + col * (INVADER_WIDTH + INVADER_PADDING),
+                y: INVADER_TOP_OFFSET + row * (INVADER_HEIGHT + INVADER_PADDING),
+                width: INVADER_WIDTH,
+                height: INVADER_HEIGHT,
+                alive: true,
+                row: row
+            });
+        }
+    }
+    aliveInvaders = totalInvaders;
+    invaderDirection = 1;
+}
+
 // Keyboard event listeners
 document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
@@ -70,6 +106,88 @@ function drawPlayer() {
     ctx.fill();
 }
 
+function drawInvader(invader) {
+    if (!invader.alive) return;
+
+    // Different colors for different rows
+    const colors = ['#ff0000', '#ff6600', '#ffff00', '#00ff00', '#00ffff'];
+    ctx.fillStyle = colors[invader.row % colors.length];
+
+    const x = invader.x;
+    const y = invader.y;
+    const w = invader.width;
+    const h = invader.height;
+
+    // Classic space invader shape
+    // Body
+    ctx.fillRect(x + w * 0.2, y + h * 0.2, w * 0.6, h * 0.5);
+
+    // Head
+    ctx.fillRect(x + w * 0.3, y, w * 0.4, h * 0.3);
+
+    // Arms
+    ctx.fillRect(x, y + h * 0.3, w * 0.2, h * 0.3);
+    ctx.fillRect(x + w * 0.8, y + h * 0.3, w * 0.2, h * 0.3);
+
+    // Legs
+    ctx.fillRect(x + w * 0.1, y + h * 0.7, w * 0.2, h * 0.3);
+    ctx.fillRect(x + w * 0.7, y + h * 0.7, w * 0.2, h * 0.3);
+
+    // Eyes
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + w * 0.35, y + h * 0.1, w * 0.1, h * 0.1);
+    ctx.fillRect(x + w * 0.55, y + h * 0.1, w * 0.1, h * 0.1);
+}
+
+function drawInvaders() {
+    for (const invader of invaders) {
+        drawInvader(invader);
+    }
+}
+
+function getFleetBounds() {
+    let minX = CANVAS_WIDTH;
+    let maxX = 0;
+
+    for (const invader of invaders) {
+        if (invader.alive) {
+            if (invader.x < minX) minX = invader.x;
+            if (invader.x + invader.width > maxX) maxX = invader.x + invader.width;
+        }
+    }
+
+    return { minX, maxX };
+}
+
+function updateInvaders(dt) {
+    // Calculate current speed based on remaining invaders
+    const speedMultiplier = 1 + ((totalInvaders - aliveInvaders) / totalInvaders) * 2;
+    const currentSpeed = INVADER_BASE_SPEED * speedMultiplier;
+    const moveAmount = currentSpeed * (dt / 1000);
+
+    // Check if we need to change direction
+    const bounds = getFleetBounds();
+    let shouldDrop = false;
+
+    if (invaderDirection === 1 && bounds.maxX >= CANVAS_WIDTH - 10) {
+        invaderDirection = -1;
+        shouldDrop = true;
+    } else if (invaderDirection === -1 && bounds.minX <= 10) {
+        invaderDirection = 1;
+        shouldDrop = true;
+    }
+
+    // Move all invaders
+    for (const invader of invaders) {
+        if (invader.alive) {
+            if (shouldDrop) {
+                invader.y += INVADER_DROP_DISTANCE;
+            }
+            invader.x += moveAmount * invaderDirection;
+        }
+    }
+}
+
 function updatePlayer(dt) {
     const moveAmount = player.speed * (dt / 1000);
 
@@ -91,10 +209,12 @@ function updatePlayer(dt) {
 
 function update(deltaTime) {
     updatePlayer(deltaTime);
+    updateInvaders(deltaTime);
 }
 
 function render() {
     clearCanvas();
+    drawInvaders();
     drawPlayer();
     drawFPS();
 }
@@ -117,6 +237,9 @@ function gameLoop(timestamp) {
 
     requestAnimationFrame(gameLoop);
 }
+
+// Initialize game
+initInvaders();
 
 // Start the game loop
 requestAnimationFrame(gameLoop);
