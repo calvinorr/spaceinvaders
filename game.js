@@ -1071,15 +1071,15 @@ for (let i = 0; i < STAR_COUNT; i++) {
     });
 }
 
-// Background invaders for animation
+// Background invaders for animation (positioned at bottom, behind UI)
 const bgInvaders = [];
-for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 8; col++) {
+for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 10; col++) {
         bgInvaders.push({
-            x: 80 + col * 80,
-            y: 420 + row * 50,
+            x: 50 + col * 70,
+            y: 520 + row * 40,
             row: row,
-            baseX: 80 + col * 80
+            baseX: 50 + col * 70
         });
     }
 }
@@ -1171,14 +1171,14 @@ function drawStartScreen() {
     ctx.globalAlpha = 1;
 
     // === TITLE with NEON GLOW ===
-    const titleY = 90;
+    const titleY = 70;
     const glowIntensity = titleGlow;
 
     // Outer glow layers
     ctx.save();
     ctx.shadowColor = '#00ff00';
     ctx.shadowBlur = 40 * glowIntensity;
-    ctx.font = 'bold 52px "Courier New", monospace';
+    ctx.font = 'bold 48px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = `rgba(0, 255, 0, ${0.3 * glowIntensity})`;
     ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, titleY);
@@ -1188,89 +1188,92 @@ function drawStartScreen() {
     ctx.save();
     ctx.shadowColor = '#00ff88';
     ctx.shadowBlur = 15;
-    ctx.font = 'bold 52px "Courier New", monospace';
+    ctx.font = 'bold 48px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00ff44';
     ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, titleY);
     ctx.restore();
 
     // Main title text
-    ctx.font = 'bold 52px "Courier New", monospace';
+    ctx.font = 'bold 48px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, titleY);
 
-    // Subtitle with retro feel
-    ctx.font = '14px "Courier New", monospace';
-    ctx.fillStyle = '#00ffaa';
-    ctx.fillText('< DEFEND EARTH FROM THE ALIEN INVASION >', CANVAS_WIDTH / 2, titleY + 25);
-
     // === SCORE TABLE PANEL ===
-    const panelY = 140;
-    const panelHeight = 160;
+    const panelX = 150;
+    const panelWidth = 500;
+    const panelY = 110;
+    const panelHeight = 190;
+    const panelPadding = 20;
 
     // Panel background with border
-    ctx.fillStyle = 'rgba(0, 30, 0, 0.6)';
-    ctx.fillRect(200, panelY, 400, panelHeight);
+    ctx.fillStyle = 'rgba(0, 20, 0, 0.7)';
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
     ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 2;
-    ctx.strokeRect(200, panelY, 400, panelHeight);
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
 
     // Corner decorations
-    const cornerSize = 8;
+    const cornerSize = 10;
     ctx.fillStyle = '#00ff00';
     // Top-left
-    ctx.fillRect(200, panelY, cornerSize, 2);
-    ctx.fillRect(200, panelY, 2, cornerSize);
+    ctx.fillRect(panelX, panelY, cornerSize, 2);
+    ctx.fillRect(panelX, panelY, 2, cornerSize);
     // Top-right
-    ctx.fillRect(600 - cornerSize, panelY, cornerSize, 2);
-    ctx.fillRect(598, panelY, 2, cornerSize);
+    ctx.fillRect(panelX + panelWidth - cornerSize, panelY, cornerSize, 2);
+    ctx.fillRect(panelX + panelWidth - 2, panelY, 2, cornerSize);
     // Bottom-left
-    ctx.fillRect(200, panelY + panelHeight - 2, cornerSize, 2);
-    ctx.fillRect(200, panelY + panelHeight - cornerSize, 2, cornerSize);
+    ctx.fillRect(panelX, panelY + panelHeight - 2, cornerSize, 2);
+    ctx.fillRect(panelX, panelY + panelHeight - cornerSize, 2, cornerSize);
     // Bottom-right
-    ctx.fillRect(600 - cornerSize, panelY + panelHeight - 2, cornerSize, 2);
-    ctx.fillRect(598, panelY + panelHeight - cornerSize, 2, cornerSize);
+    ctx.fillRect(panelX + panelWidth - cornerSize, panelY + panelHeight - 2, cornerSize, 2);
+    ctx.fillRect(panelX + panelWidth - 2, panelY + panelHeight - cornerSize, 2, cornerSize);
 
     // Score table header
-    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.font = 'bold 14px "Courier New", monospace';
     ctx.fillStyle = '#ffff00';
-    ctx.fillText('*SCORE ADVANCE TABLE*', CANVAS_WIDTH / 2, panelY + 25);
+    ctx.fillText('* SCORE ADVANCE TABLE *', CANVAS_WIDTH / 2, panelY + panelPadding + 5);
 
-    // Mystery ship
+    // Content area starts after header
+    const contentY = panelY + panelPadding + 25;
+    const rowHeight = 38;
+    const spriteX = panelX + 80;
+    const textX = panelX + 150;
+
+    // Mystery ship row
     ctx.fillStyle = '#ff00ff';
     ctx.save();
     ctx.shadowColor = '#ff00ff';
     ctx.shadowBlur = 10;
     // Draw mini UFO
-    const ufoX = 280;
-    const ufoY = panelY + 48;
+    const ufoY = contentY + 5;
     ctx.beginPath();
-    ctx.ellipse(ufoX + 20, ufoY + 8, 18, 8, 0, 0, Math.PI * 2);
+    ctx.ellipse(spriteX + 15, ufoY + 8, 16, 7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(ufoX + 20, ufoY + 4, 8, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(spriteX + 15, ufoY + 4, 7, 5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '16px "Courier New", monospace';
+    ctx.font = '15px "Courier New", monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('= ? MYSTERY', 320, panelY + 55);
+    ctx.fillText('=  ? MYSTERY', textX, contentY + 15);
 
     // Invader types with animated frames
     const invTypes = [
-        { row: 0, points: 30, color: '#ff3333', y: panelY + 80 },
-        { row: 2, points: 20, color: '#ffff33', y: panelY + 110 },
-        { row: 4, points: 10, color: '#33ffff', y: panelY + 140 }
+        { row: 0, points: 30, color: '#ff3333', y: contentY + rowHeight },
+        { row: 2, points: 20, color: '#ffff33', y: contentY + rowHeight * 2 },
+        { row: 4, points: 10, color: '#33ffff', y: contentY + rowHeight * 3 }
     ];
 
     const menuAnimFrame = bgAnimFrame; // Sync with background
 
     for (const inv of invTypes) {
-        const x = 280;
+        const x = spriteX;
         const y = inv.y;
         const w = 28;
-        const h = 20;
+        const h = 22;
 
         ctx.fillStyle = inv.color;
         ctx.save();
@@ -1300,25 +1303,26 @@ function drawStartScreen() {
         ctx.fillRect(x + w * 0.55, y + h * 0.08, w * 0.08, h * 0.1);
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`= ${inv.points} POINTS`, 320, y + 15);
+        ctx.font = '15px "Courier New", monospace';
+        ctx.fillText(`=  ${inv.points} PTS`, textX, y + 16);
     }
 
     // === DIFFICULTY SELECTOR ===
-    const diffY = 320;
+    const diffY = 325;
 
-    ctx.font = '14px "Courier New", monospace';
+    ctx.font = '12px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#888888';
+    ctx.fillStyle = '#666666';
     ctx.fillText('SELECT DIFFICULTY', CANVAS_WIDTH / 2, diffY);
 
-    // Difficulty options in a row
+    // Difficulty options in a row with better spacing
     const diffOptions = [
-        { key: 'easy', label: 'EASY', color: '#00ff00', x: 280 },
+        { key: 'easy', label: 'EASY', color: '#00ff00', x: 250 },
         { key: 'normal', label: 'NORMAL', color: '#ffff00', x: 400 },
-        { key: 'hard', label: 'HARD', color: '#ff0000', x: 520 }
+        { key: 'hard', label: 'HARD', color: '#ff0000', x: 550 }
     ];
 
-    ctx.font = 'bold 18px "Courier New", monospace';
+    ctx.font = 'bold 20px "Courier New", monospace';
     for (let i = 0; i < diffOptions.length; i++) {
         const opt = diffOptions[i];
         const isSelected = DIFFICULTY_ORDER[selectedDifficultyIndex] === opt.key;
@@ -1332,49 +1336,52 @@ function drawStartScreen() {
             ctx.fillText(opt.label, opt.x, diffY + 30);
             ctx.restore();
 
-            // Selection brackets with pulse
+            // Selection indicators
             const pulse = Math.sin(startScreenTime / 150) * 0.3 + 0.7;
             ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
-            ctx.fillText('[', opt.x - ctx.measureText(opt.label).width / 2 - 15, diffY + 30);
-            ctx.fillText(']', opt.x + ctx.measureText(opt.label).width / 2 + 10, diffY + 30);
+            const labelWidth = ctx.measureText(opt.label).width;
+            ctx.font = '16px "Courier New", monospace';
+            ctx.fillText('>', opt.x - labelWidth / 2 - 20, diffY + 30);
+            ctx.fillText('<', opt.x + labelWidth / 2 + 12, diffY + 30);
+            ctx.font = 'bold 20px "Courier New", monospace';
         } else {
-            ctx.fillStyle = '#444444';
+            ctx.fillStyle = '#333333';
             ctx.fillText(opt.label, opt.x, diffY + 30);
         }
     }
 
     // Arrow key hint
-    ctx.font = '12px "Courier New", monospace';
-    ctx.fillStyle = '#555555';
-    ctx.fillText('< LEFT / RIGHT >', CANVAS_WIDTH / 2, diffY + 55);
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillStyle = '#444444';
+    ctx.fillText('LEFT / RIGHT TO SELECT', CANVAS_WIDTH / 2, diffY + 55);
 
     // === HIGH SCORE ===
-    ctx.font = 'bold 20px "Courier New", monospace';
+    ctx.font = 'bold 18px "Courier New", monospace';
     ctx.save();
     ctx.shadowColor = '#ffff00';
     ctx.shadowBlur = 10;
     ctx.fillStyle = '#ffff00';
-    ctx.fillText(`HIGH SCORE: ${highScore}`, CANVAS_WIDTH / 2, 400);
+    ctx.fillText(`HIGH SCORE: ${highScore}`, CANVAS_WIDTH / 2, 420);
     ctx.restore();
 
     // === PRESS START (blinking) ===
     const blink = Math.sin(startScreenTime / 300) > 0;
     if (blink) {
-        ctx.font = 'bold 24px "Courier New", monospace';
+        ctx.font = 'bold 22px "Courier New", monospace';
         ctx.save();
         ctx.shadowColor = '#00ffff';
         ctx.shadowBlur = 20;
         ctx.fillStyle = '#00ffff';
-        ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, 450);
+        ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, 470);
         ctx.restore();
         ctx.fillStyle = '#ffffff';
-        ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, 450);
+        ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, 470);
     }
 
     // === CONTROLS INFO ===
-    ctx.font = '12px "Courier New", monospace';
-    ctx.fillStyle = '#444444';
-    ctx.fillText('MOVE: ARROWS / WASD    FIRE: SPACE', CANVAS_WIDTH / 2, 490);
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillStyle = '#333333';
+    ctx.fillText('MOVE: ARROWS / WASD        FIRE: SPACE', CANVAS_WIDTH / 2, 510);
 
     // === CRT SCANLINES OVERLAY ===
     ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
