@@ -13,7 +13,8 @@ let currentFPS = 0;
 // Input state
 const keys = {
     left: false,
-    right: false
+    right: false,
+    shoot: false
 };
 
 // Player ship
@@ -24,6 +25,18 @@ const player = {
     height: 30,
     speed: 300
 };
+
+// Bullet configuration
+const PLAYER_BULLET_SPEED = 400;
+const INVADER_BULLET_SPEED = 200;
+const BULLET_WIDTH = 4;
+const BULLET_HEIGHT = 12;
+const INVADER_FIRE_INTERVAL = 1500; // ms between invader shots
+
+// Bullet arrays
+const playerBullets = [];
+const invaderBullets = [];
+let invaderFireTimer = 0;
 
 // Invader fleet configuration
 const INVADER_ROWS = 5;
@@ -53,7 +66,8 @@ function initInvaders() {
                 width: INVADER_WIDTH,
                 height: INVADER_HEIGHT,
                 alive: true,
-                row: row
+                row: row,
+                col: col
             });
         }
     }
@@ -69,6 +83,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         keys.right = true;
     }
+    if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault(); // Prevent page scroll
+        keys.shoot = true;
+    }
 });
 
 document.addEventListener('keyup', (e) => {
@@ -77,6 +95,9 @@ document.addEventListener('keyup', (e) => {
     }
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         keys.right = false;
+    }
+    if (e.key === ' ' || e.key === 'Spacebar') {
+        keys.shoot = false;
     }
 });
 
@@ -145,6 +166,20 @@ function drawInvaders() {
     }
 }
 
+function drawBullets() {
+    // Player bullets (green)
+    ctx.fillStyle = '#33ff33';
+    for (const bullet of playerBullets) {
+        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+    }
+
+    // Invader bullets (red)
+    ctx.fillStyle = '#ff3333';
+    for (const bullet of invaderBullets) {
+        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+    }
+}
+
 function getFleetBounds() {
     let minX = CANVAS_WIDTH;
     let maxX = 0;
@@ -157,6 +192,80 @@ function getFleetBounds() {
     }
 
     return { minX, maxX };
+}
+
+function getBottomInvaders() {
+    // Get the bottom-most alive invader in each column
+    const bottomInvaders = [];
+
+    for (let col = 0; col < INVADER_COLS; col++) {
+        let bottomInvader = null;
+        for (const invader of invaders) {
+            if (invader.alive && invader.col === col) {
+                if (!bottomInvader || invader.row > bottomInvader.row) {
+                    bottomInvader = invader;
+                }
+            }
+        }
+        if (bottomInvader) {
+            bottomInvaders.push(bottomInvader);
+        }
+    }
+
+    return bottomInvaders;
+}
+
+function playerShoot() {
+    // Classic: only one bullet at a time
+    if (playerBullets.length > 0) return;
+
+    playerBullets.push({
+        x: player.x + player.width / 2 - BULLET_WIDTH / 2,
+        y: player.y - BULLET_HEIGHT,
+        width: BULLET_WIDTH,
+        height: BULLET_HEIGHT,
+        speed: PLAYER_BULLET_SPEED
+    });
+}
+
+function invaderShoot() {
+    const bottomInvaders = getBottomInvaders();
+    if (bottomInvaders.length === 0) return;
+
+    // Pick a random bottom invader to shoot
+    const shooter = bottomInvaders[Math.floor(Math.random() * bottomInvaders.length)];
+
+    invaderBullets.push({
+        x: shooter.x + shooter.width / 2 - BULLET_WIDTH / 2,
+        y: shooter.y + shooter.height,
+        width: BULLET_WIDTH,
+        height: BULLET_HEIGHT,
+        speed: INVADER_BULLET_SPEED
+    });
+}
+
+function updateBullets(dt) {
+    const dtSeconds = dt / 1000;
+
+    // Update player bullets (move up)
+    for (let i = playerBullets.length - 1; i >= 0; i--) {
+        playerBullets[i].y -= playerBullets[i].speed * dtSeconds;
+
+        // Remove if off screen
+        if (playerBullets[i].y + playerBullets[i].height < 0) {
+            playerBullets.splice(i, 1);
+        }
+    }
+
+    // Update invader bullets (move down)
+    for (let i = invaderBullets.length - 1; i >= 0; i--) {
+        invaderBullets[i].y += invaderBullets[i].speed * dtSeconds;
+
+        // Remove if off screen
+        if (invaderBullets[i].y > CANVAS_HEIGHT) {
+            invaderBullets.splice(i, 1);
+        }
+    }
 }
 
 function updateInvaders(dt) {
@@ -186,6 +295,13 @@ function updateInvaders(dt) {
             invader.x += moveAmount * invaderDirection;
         }
     }
+
+    // Invader shooting
+    invaderFireTimer += dt;
+    if (invaderFireTimer >= INVADER_FIRE_INTERVAL) {
+        invaderFireTimer = 0;
+        invaderShoot();
+    }
 }
 
 function updatePlayer(dt) {
@@ -205,17 +321,25 @@ function updatePlayer(dt) {
     if (player.x > CANVAS_WIDTH - player.width) {
         player.x = CANVAS_WIDTH - player.width;
     }
+
+    // Shooting
+    if (keys.shoot) {
+        playerShoot();
+        keys.shoot = false; // Require re-press for next shot
+    }
 }
 
 function update(deltaTime) {
     updatePlayer(deltaTime);
     updateInvaders(deltaTime);
+    updateBullets(deltaTime);
 }
 
 function render() {
     clearCanvas();
     drawInvaders();
     drawPlayer();
+    drawBullets();
     drawFPS();
 }
 
