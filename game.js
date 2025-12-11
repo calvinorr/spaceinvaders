@@ -11,10 +11,15 @@ let fpsTime = 0;
 let currentFPS = 0;
 
 // Game state
-let gameState = 'playing'; // 'playing', 'gameover', 'victory'
+let gameState = 'playing'; // 'playing', 'gameover', 'levelup'
 let playerHit = false;
 let playerHitTimer = 0;
 const PLAYER_HIT_FLASH_DURATION = 200;
+
+// Level system
+let level = 1;
+let levelUpTimer = 0;
+const LEVEL_UP_DURATION = 2000; // Show "LEVEL X" for 2 seconds
 
 // Score and lives
 let score = 0;
@@ -29,7 +34,8 @@ const INVADER_POINTS = [30, 30, 20, 20, 10]; // Row 0-1: 30pts, Row 2-3: 20pts, 
 const keys = {
     left: false,
     right: false,
-    shoot: false
+    shoot: false,
+    restart: false
 };
 
 // Player ship
@@ -46,7 +52,8 @@ const PLAYER_BULLET_SPEED = 400;
 const INVADER_BULLET_SPEED = 200;
 const BULLET_WIDTH = 4;
 const BULLET_HEIGHT = 12;
-const INVADER_FIRE_INTERVAL = 1500; // ms between invader shots
+const BASE_FIRE_INTERVAL = 1500; // Base ms between invader shots
+let currentFireInterval = BASE_FIRE_INTERVAL;
 
 // Bullet arrays
 const playerBullets = [];
@@ -66,7 +73,8 @@ const INVADER_PADDING = 10;
 const INVADER_TOP_OFFSET = 80; // Increased to make room for HUD
 const INVADER_LEFT_OFFSET = 50;
 const INVADER_DROP_DISTANCE = 20;
-const INVADER_BASE_SPEED = 30;
+const BASE_INVADER_SPEED = 30;
+let currentInvaderSpeed = BASE_INVADER_SPEED;
 
 // Invader fleet state
 const invaders = [];
@@ -94,6 +102,46 @@ function initInvaders() {
     invaderDirection = 1;
 }
 
+// Start next level
+function startNextLevel() {
+    level++;
+
+    // Increase difficulty
+    currentInvaderSpeed = BASE_INVADER_SPEED * (1 + (level - 1) * 0.2); // 20% faster each level
+    currentFireInterval = Math.max(500, BASE_FIRE_INTERVAL - (level - 1) * 150); // Faster shooting, min 500ms
+
+    // Reset invaders and bullets
+    initInvaders();
+    playerBullets.length = 0;
+    invaderBullets.length = 0;
+    invaderFireTimer = 0;
+
+    // Center player
+    player.x = CANVAS_WIDTH / 2 - player.width / 2;
+
+    gameState = 'playing';
+}
+
+// Reset entire game
+function resetGame() {
+    level = 1;
+    score = 0;
+    lives = STARTING_LIVES;
+    currentInvaderSpeed = BASE_INVADER_SPEED;
+    currentFireInterval = BASE_FIRE_INTERVAL;
+
+    initInvaders();
+    playerBullets.length = 0;
+    invaderBullets.length = 0;
+    explosions.length = 0;
+    invaderFireTimer = 0;
+
+    player.x = CANVAS_WIDTH / 2 - player.width / 2;
+    playerHit = false;
+
+    gameState = 'playing';
+}
+
 // Keyboard event listeners
 document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
@@ -106,6 +154,9 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault(); // Prevent page scroll
         keys.shoot = true;
     }
+    if (e.key === 'Enter') {
+        keys.restart = true;
+    }
 });
 
 document.addEventListener('keyup', (e) => {
@@ -117,6 +168,9 @@ document.addEventListener('keyup', (e) => {
     }
     if (e.key === ' ' || e.key === 'Spacebar') {
         keys.shoot = false;
+    }
+    if (e.key === 'Enter') {
+        keys.restart = false;
     }
 });
 
@@ -133,9 +187,12 @@ function drawHUD() {
     ctx.textAlign = 'left';
     ctx.fillText(`SCORE: ${score}`, 10, 25);
 
+    // Level (center-left)
+    ctx.fillText(`LEVEL: ${level}`, 200, 25);
+
     // High Score (center)
     ctx.textAlign = 'center';
-    ctx.fillText(`HIGH SCORE: ${highScore}`, CANVAS_WIDTH / 2, 25);
+    ctx.fillText(`HIGH: ${highScore}`, CANVAS_WIDTH / 2 + 50, 25);
 
     // Lives (right) - draw ship icons
     ctx.textAlign = 'right';
@@ -344,7 +401,7 @@ function invaderShoot() {
         y: shooter.y + shooter.height,
         width: BULLET_WIDTH,
         height: BULLET_HEIGHT,
-        speed: INVADER_BULLET_SPEED
+        speed: INVADER_BULLET_SPEED + (level - 1) * 20 // Bullets get faster too
     });
 }
 
@@ -369,8 +426,8 @@ function updateCollisions() {
                 aliveInvaders--;
                 playerBullets.splice(i, 1);
 
-                // Add score based on invader row
-                const points = INVADER_POINTS[invader.row] || 10;
+                // Add score based on invader row (with level bonus)
+                const points = (INVADER_POINTS[invader.row] || 10) * level;
                 score += points;
 
                 // Update high score
@@ -384,9 +441,10 @@ function updateCollisions() {
                     invader.y + invader.height / 2
                 );
 
-                // Check for victory
+                // Check for level complete
                 if (aliveInvaders === 0) {
-                    gameState = 'victory';
+                    gameState = 'levelup';
+                    levelUpTimer = 0;
                 }
 
                 break; // Bullet can only hit one invader
@@ -455,9 +513,9 @@ function updateBullets(dt) {
 function updateInvaders(dt) {
     if (gameState !== 'playing') return;
 
-    // Calculate current speed based on remaining invaders
+    // Calculate current speed based on remaining invaders AND level
     const speedMultiplier = 1 + ((totalInvaders - aliveInvaders) / totalInvaders) * 2;
-    const currentSpeed = INVADER_BASE_SPEED * speedMultiplier;
+    const currentSpeed = currentInvaderSpeed * speedMultiplier;
     const moveAmount = currentSpeed * (dt / 1000);
 
     // Check if we need to change direction
@@ -484,7 +542,7 @@ function updateInvaders(dt) {
 
     // Invader shooting
     invaderFireTimer += dt;
-    if (invaderFireTimer >= INVADER_FIRE_INTERVAL) {
+    if (invaderFireTimer >= currentFireInterval) {
         invaderFireTimer = 0;
         invaderShoot();
     }
@@ -525,7 +583,27 @@ function updatePlayer(dt) {
     }
 }
 
+function updateLevelUp(dt) {
+    levelUpTimer += dt;
+    if (levelUpTimer >= LEVEL_UP_DURATION) {
+        startNextLevel();
+    }
+}
+
 function update(deltaTime) {
+    // Handle restart
+    if (gameState === 'gameover' && keys.restart) {
+        resetGame();
+        keys.restart = false;
+        return;
+    }
+
+    if (gameState === 'levelup') {
+        updateLevelUp(deltaTime);
+        updateExplosions(deltaTime);
+        return;
+    }
+
     updatePlayer(deltaTime);
     updateInvaders(deltaTime);
     updateBullets(deltaTime);
@@ -554,17 +632,18 @@ function render() {
             ctx.fillText('Invaders reached Earth!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
         }
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`Final Score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+        ctx.fillText(`Final Score: ${score}  |  Level: ${level}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+        ctx.fillStyle = '#ffff00';
+        ctx.fillText('Press ENTER to play again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 120);
         ctx.textAlign = 'left';
-    } else if (gameState === 'victory') {
+    } else if (gameState === 'levelup') {
         ctx.fillStyle = '#33ff33';
         ctx.font = '48px Courier New';
         ctx.textAlign = 'center';
-        ctx.fillText('VICTORY!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-        ctx.font = '20px Courier New';
-        ctx.fillText('All invaders destroyed!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+        ctx.fillText(`LEVEL ${level} COMPLETE!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        ctx.font = '24px Courier New';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`Final Score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
+        ctx.fillText(`Get ready for Level ${level + 1}...`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
         ctx.textAlign = 'left';
     }
 }
