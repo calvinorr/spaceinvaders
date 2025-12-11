@@ -166,8 +166,6 @@ function initInvaders() {
     }
     aliveInvaders = totalInvaders;
     invaderDirection = 1;
-    animationFrame = 0;
-    stepTimer = 0;
 }
 
 // Create bunker pixel shape (classic arcade bunker with arch)
@@ -241,9 +239,8 @@ function spawnUFO() {
 function startNextLevel() {
     level++;
 
-    // Increase difficulty with level progression and difficulty multiplier
-    const diff = DIFFICULTIES[currentDifficulty];
-    currentInvaderSpeed = BASE_INVADER_SPEED * diff.invaderSpeedMult * (1 + (level - 1) * 0.2); // 20% faster each level
+    // Increase difficulty
+    currentInvaderSpeed = BASE_INVADER_SPEED * (1 + (level - 1) * 0.2); // 20% faster each level
     currentFireInterval = Math.max(500, BASE_FIRE_INTERVAL - (level - 1) * 150); // Faster shooting, min 500ms
 
     // Reset invaders, bullets, bunkers, and UFO
@@ -265,11 +262,8 @@ function startNextLevel() {
 function resetGame() {
     level = 1;
     score = 0;
-
-    // Apply difficulty settings
-    const diff = DIFFICULTIES[currentDifficulty];
-    lives = diff.lives;
-    currentInvaderSpeed = BASE_INVADER_SPEED * diff.invaderSpeedMult;
+    lives = STARTING_LIVES;
+    currentInvaderSpeed = BASE_INVADER_SPEED;
     currentFireInterval = BASE_FIRE_INTERVAL;
 
     initInvaders();
@@ -305,16 +299,6 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         keys.restart = true;
     }
-    if (e.key === 'ArrowUp') {
-        if (gameState === 'start') {
-            selectedDifficultyIndex = (selectedDifficultyIndex - 1 + DIFFICULTY_ORDER.length) % DIFFICULTY_ORDER.length;
-        }
-    }
-    if (e.key === 'ArrowDown') {
-        if (gameState === 'start') {
-            selectedDifficultyIndex = (selectedDifficultyIndex + 1) % DIFFICULTY_ORDER.length;
-        }
-    }
 });
 
 document.addEventListener('keyup', (e) => {
@@ -348,15 +332,9 @@ function drawHUD() {
     // Level (center-left)
     ctx.fillText(`LEVEL: ${level}`, 200, 25);
 
-    // Difficulty (center-left)
-    const diff = DIFFICULTIES[currentDifficulty];
-    ctx.fillStyle = currentDifficulty === 'easy' ? '#00ff00' : currentDifficulty === 'hard' ? '#ff0000' : '#ffff00';
-    ctx.fillText(`DIFFICULTY: ${diff.name}`, 370, 25);
-
-    // High Score (center-right)
-    ctx.fillStyle = '#ffffff';
+    // High Score (center)
     ctx.textAlign = 'center';
-    ctx.fillText(`HIGH: ${highScore}`, CANVAS_WIDTH / 2 + 100, 25);
+    ctx.fillText(`HIGH: ${highScore}`, CANVAS_WIDTH / 2 + 50, 25);
 
     // Lives (right) - draw ship icons
     ctx.textAlign = 'right';
@@ -715,13 +693,12 @@ function playerShoot() {
     // Classic: only one bullet at a time
     if (playerBullets.length > 0) return;
 
-    const diff = DIFFICULTIES[currentDifficulty];
     playerBullets.push({
         x: player.x + player.width / 2 - BULLET_WIDTH / 2,
         y: player.y - BULLET_HEIGHT,
         width: BULLET_WIDTH,
         height: BULLET_HEIGHT,
-        speed: PLAYER_BULLET_SPEED * diff.bulletSpeedMult
+        speed: PLAYER_BULLET_SPEED
     });
 }
 
@@ -732,13 +709,12 @@ function invaderShoot() {
     // Pick a random bottom invader to shoot
     const shooter = bottomInvaders[Math.floor(Math.random() * bottomInvaders.length)];
 
-    const diff = DIFFICULTIES[currentDifficulty];
     invaderBullets.push({
         x: shooter.x + shooter.width / 2 - BULLET_WIDTH / 2,
         y: shooter.y + shooter.height,
         width: BULLET_WIDTH,
         height: BULLET_HEIGHT,
-        speed: (INVADER_BULLET_SPEED + (level - 1) * 20) * diff.bulletSpeedMult // Bullets get faster too
+        speed: INVADER_BULLET_SPEED + (level - 1) * 20 // Bullets get faster too
     });
 }
 
@@ -768,8 +744,7 @@ function updateCollisions() {
             const bullet = playerBullets[i];
             if (checkCollision(bullet, ufo)) {
                 // Hit the UFO!
-                const diff = DIFFICULTIES[currentDifficulty];
-                const points = Math.floor(ufo.points * level * diff.scoreMult);
+                const points = ufo.points * level;
                 score += points;
 
                 // Update high score
@@ -808,8 +783,7 @@ function updateCollisions() {
                 playerBullets.splice(i, 1);
 
                 // Add score based on invader row (with level bonus)
-                const diff = DIFFICULTIES[currentDifficulty];
-                const points = Math.floor((INVADER_POINTS[invader.row] || 10) * level * diff.scoreMult);
+                const points = (INVADER_POINTS[invader.row] || 10) * level;
                 score += points;
 
                 // Update high score
@@ -937,47 +911,36 @@ function updateBullets(dt) {
 function updateInvaders(dt) {
     if (gameState !== 'playing') return;
 
-    // Calculate current step interval based on remaining invaders AND level
-    // Fewer invaders = faster marching (shorter interval between steps)
+    // Calculate current speed based on remaining invaders AND level
     const speedMultiplier = 1 + ((totalInvaders - aliveInvaders) / totalInvaders) * 2;
-    const currentStepInterval = BASE_STEP_INTERVAL / (speedMultiplier * (1 + (level - 1) * 0.2));
+    const currentSpeed = currentInvaderSpeed * speedMultiplier;
+    const moveAmount = currentSpeed * (dt / 1000);
 
-    // Accumulate time for step-based movement
-    stepTimer += dt;
+    // Check if we need to change direction
+    const bounds = getFleetBounds();
+    let shouldDrop = false;
 
-    // Check if it's time to take a step
-    if (stepTimer >= currentStepInterval) {
-        stepTimer = 0; // Reset timer for next step
+    if (invaderDirection === 1 && bounds.maxX >= CANVAS_WIDTH - 10) {
+        invaderDirection = -1;
+        shouldDrop = true;
+    } else if (invaderDirection === -1 && bounds.minX <= 10) {
+        invaderDirection = 1;
+        shouldDrop = true;
+    }
 
-        // Toggle animation frame
-        animationFrame = animationFrame === 0 ? 1 : 0;
-
-        // Check if we need to change direction
-        const bounds = getFleetBounds();
-        let shouldDrop = false;
-
-        if (invaderDirection === 1 && bounds.maxX >= CANVAS_WIDTH - 10) {
-            invaderDirection = -1;
-            shouldDrop = true;
-        } else if (invaderDirection === -1 && bounds.minX <= 10) {
-            invaderDirection = 1;
-            shouldDrop = true;
-        }
-
-        // Move all invaders by one discrete step
-        for (const invader of invaders) {
-            if (invader.alive) {
-                if (shouldDrop) {
-                    invader.y += INVADER_DROP_DISTANCE;
-                }
-                invader.x += INVADER_STEP_SIZE * invaderDirection;
+    // Move all invaders
+    for (const invader of invaders) {
+        if (invader.alive) {
+            if (shouldDrop) {
+                invader.y += INVADER_DROP_DISTANCE;
             }
+            invader.x += moveAmount * invaderDirection;
         }
+    }
 
-        // Screen shake when invaders drop
-        if (shouldDrop) {
-            triggerShake(6, 200); // Intensity 6, duration 200ms
-        }
+    // Screen shake when invaders drop
+    if (shouldDrop) {
+        triggerShake(6, 200); // Intensity 6, duration 200ms
     }
 
     // Invader shooting
@@ -1056,109 +1019,10 @@ function updateUFO(dt) {
     }
 }
 
-
-// Draw start screen with difficulty selection
-function drawStartScreen() {
-    clearCanvas();
-
-    // Title
-    ctx.fillStyle = '#33ff33';
-    ctx.font = 'bold 60px Courier New';
-    ctx.textAlign = 'center';
-    ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, 100);
-
-    // Mystery UFO with points
-    ctx.fillStyle = '#ff00ff';
-    ctx.font = '20px Courier New';
-    ctx.fillText('=*= MYSTERY = ??? PTS', CANVAS_WIDTH / 2, 180);
-
-    // Draw sample invaders with point values
-    const startX = CANVAS_WIDTH / 2 - 120;
-    let yPos = 230;
-
-    // Top row invader (30 points) - row 0 styling
-    const invader1 = { x: startX, y: yPos, width: 30, height: 22, alive: true, row: 0 };
-    drawInvader(invader1);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '20px Courier New';
-    ctx.textAlign = 'left';
-    ctx.fillText('= 30 POINTS', startX + 50, yPos + 15);
-
-    // Middle row invader (20 points) - row 2 styling
-    yPos += 50;
-    const invader2 = { x: startX, y: yPos, width: 30, height: 22, alive: true, row: 2 };
-    drawInvader(invader2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('= 20 POINTS', startX + 50, yPos + 15);
-
-    // Bottom row invader (10 points) - row 4 styling
-    yPos += 50;
-    const invader3 = { x: startX, y: yPos, width: 30, height: 22, alive: true, row: 4 };
-    drawInvader(invader3);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('= 10 POINTS', startX + 50, yPos + 15);
-
-    // Difficulty selection
-    yPos += 70;
-    ctx.font = '20px Courier New';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#888888';
-    ctx.fillText('DIFFICULTY', CANVAS_WIDTH / 2, yPos);
-
-    yPos += 35;
-    for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
-        const diff = DIFFICULTIES[DIFFICULTY_ORDER[i]];
-        const isSelected = i === selectedDifficultyIndex;
-
-        if (isSelected) {
-            // Highlight selected difficulty
-            ctx.fillStyle = DIFFICULTY_ORDER[i] === 'easy' ? '#00ff00' :
-                           DIFFICULTY_ORDER[i] === 'hard' ? '#ff0000' : '#ffff00';
-            ctx.fillText(`> ${diff.name} <`, CANVAS_WIDTH / 2, yPos);
-        } else {
-            ctx.fillStyle = '#666666';
-            ctx.fillText(diff.name, CANVAS_WIDTH / 2, yPos);
-        }
-        yPos += 25;
-    }
-
-    // Arrow key hint
-    yPos += 10;
-    ctx.fillStyle = '#666666';
-    ctx.font = '14px Courier New';
-    ctx.fillText('USE UP/DOWN TO SELECT', CANVAS_WIDTH / 2, yPos);
-
-    // High Score
-    yPos += 40;
-    ctx.fillStyle = '#ffff00';
-    ctx.font = '24px Courier New';
-    ctx.fillText(`HIGH SCORE: ${highScore}`, CANVAS_WIDTH / 2, yPos);
-
-    // Instructions
-    yPos += 50;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 28px Courier New';
-    ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, yPos);
-
-    ctx.textAlign = 'left';
-}
-
-function startGame() {
-    currentDifficulty = DIFFICULTY_ORDER[selectedDifficultyIndex];
-    resetGame();
-}
-
 function update(deltaTime) {
-    // Handle start screen
-    if (gameState === 'start' && keys.restart) {
-        startGame();
-        keys.restart = false;
-        return;
-    }
-
     // Handle restart
     if (gameState === 'gameover' && keys.restart) {
-        gameState = 'start';
+        resetGame();
         keys.restart = false;
         return;
     }
@@ -1177,20 +1041,8 @@ function update(deltaTime) {
     updateExplosions(deltaTime);
     updateShake(deltaTime);
 }
-    // Check for start screen first
-    if (gameState === 'start') {
-        drawStartScreen();
-        return;
-    }
-
 
 function render() {
-    // Draw start screen
-    if (gameState === 'start') {
-        drawStartScreen();
-        return;
-    }
-
     clearCanvas();
 
     // Apply screen shake

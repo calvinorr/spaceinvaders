@@ -23,6 +23,12 @@ A complete, full arcade experience with scoring, lives, levels, sounds, and mobi
 | Add collision detection system | P0 | not-started | #6 | `stories/collisions.md` |
 | Implement scoring and lives system | P1 | not-started | #7 | `stories/scoring.md` |
 | Add game over and restart functionality | P1 | not-started | #8 | `stories/game-over.md` |
+| Implement defensive shields (bunkers) | P1 | completed | #9 | `stories/shields.md` |
+| Add mystery UFO bonus ship | P1 | completed | #10 | `stories/ufo.md` |
+| Add classic marching animation for invaders | P1 | not-started | #11 | `stories/marching-animation.md` |
+| Add start screen with title and instructions | P2 | not-started | #12 | `stories/start-screen.md` |
+| Add screen shake and visual juice effects | P2 | not-started | #13 | `stories/screen-shake.md` |
+| Add difficulty settings (Easy/Normal/Hard) | P2 | not-started | #14 | `stories/difficulty-settings.md` |
 
 ## Commands
 - `/manage` - Work through stories
