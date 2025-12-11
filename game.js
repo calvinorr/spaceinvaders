@@ -1177,12 +1177,6 @@ function update(deltaTime) {
     updateExplosions(deltaTime);
     updateShake(deltaTime);
 }
-    // Check for start screen first
-    if (gameState === 'start') {
-        drawStartScreen();
-        return;
-    }
-
 
 function render() {
     // Draw start screen
