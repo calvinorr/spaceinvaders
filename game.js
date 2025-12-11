@@ -305,15 +305,12 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         keys.restart = true;
     }
-    if (e.key === 'ArrowUp') {
-        if (gameState === 'start') {
-            selectedDifficultyIndex = (selectedDifficultyIndex - 1 + DIFFICULTY_ORDER.length) % DIFFICULTY_ORDER.length;
-        }
+    // Difficulty selection with LEFT/RIGHT on start screen
+    if (e.key === 'ArrowLeft' && gameState === 'start') {
+        selectedDifficultyIndex = (selectedDifficultyIndex - 1 + DIFFICULTY_ORDER.length) % DIFFICULTY_ORDER.length;
     }
-    if (e.key === 'ArrowDown') {
-        if (gameState === 'start') {
-            selectedDifficultyIndex = (selectedDifficultyIndex + 1) % DIFFICULTY_ORDER.length;
-        }
+    if (e.key === 'ArrowRight' && gameState === 'start') {
+        selectedDifficultyIndex = (selectedDifficultyIndex + 1) % DIFFICULTY_ORDER.length;
     }
 });
 
@@ -1057,88 +1054,353 @@ function updateUFO(dt) {
 }
 
 
-// Draw start screen with difficulty selection
+// ============================================
+// EPIC START SCREEN - Retro Arcade Aesthetic
+// ============================================
+
+// Starfield for background
+const stars = [];
+const STAR_COUNT = 150;
+for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+        x: Math.random() * 800,
+        y: Math.random() * 600,
+        speed: 0.5 + Math.random() * 2,
+        size: Math.random() * 2 + 0.5,
+        brightness: Math.random()
+    });
+}
+
+// Background invaders for animation
+const bgInvaders = [];
+for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 8; col++) {
+        bgInvaders.push({
+            x: 80 + col * 80,
+            y: 420 + row * 50,
+            row: row,
+            baseX: 80 + col * 80
+        });
+    }
+}
+let bgInvaderOffset = 0;
+let bgInvaderDir = 1;
+let bgAnimFrame = 0;
+let bgAnimTimer = 0;
+
+// Title animation
+let titleGlow = 0;
+let titleGlowDir = 1;
+
+// Start screen timing
+let startScreenTime = 0;
+
+function updateStartScreen(dt) {
+    startScreenTime += dt;
+
+    // Update stars
+    for (const star of stars) {
+        star.y += star.speed;
+        if (star.y > 600) {
+            star.y = 0;
+            star.x = Math.random() * 800;
+        }
+        star.brightness = 0.3 + Math.sin(startScreenTime / 200 + star.x) * 0.3;
+    }
+
+    // Update background invaders - slow march
+    bgAnimTimer += dt;
+    if (bgAnimTimer > 600) {
+        bgAnimTimer = 0;
+        bgAnimFrame = bgAnimFrame === 0 ? 1 : 0;
+        bgInvaderOffset += 8 * bgInvaderDir;
+        if (Math.abs(bgInvaderOffset) > 60) {
+            bgInvaderDir *= -1;
+        }
+    }
+
+    // Title glow pulse
+    titleGlow += 0.03 * titleGlowDir;
+    if (titleGlow > 1) { titleGlow = 1; titleGlowDir = -1; }
+    if (titleGlow < 0.3) { titleGlow = 0.3; titleGlowDir = 1; }
+}
+
 function drawStartScreen() {
-    clearCanvas();
+    // Update animations
+    updateStartScreen(deltaTime);
 
-    // Title
-    ctx.fillStyle = '#33ff33';
-    ctx.font = 'bold 60px Courier New';
+    // === BACKGROUND ===
+    // Deep space gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+    bgGrad.addColorStop(0, '#0a0a15');
+    bgGrad.addColorStop(0.5, '#0d0d20');
+    bgGrad.addColorStop(1, '#050510');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Draw twinkling stars
+    for (const star of stars) {
+        const alpha = 0.3 + star.brightness * 0.7;
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // === BACKGROUND INVADERS (ghostly, in the distance) ===
+    ctx.globalAlpha = 0.15;
+    for (const inv of bgInvaders) {
+        const colors = ['#ff0000', '#ff6600', '#00ff00'];
+        ctx.fillStyle = colors[inv.row % 3];
+        const x = inv.baseX + bgInvaderOffset;
+        const y = inv.y;
+        const w = 35;
+        const h = 25;
+
+        // Simple invader shape
+        ctx.fillRect(x + w * 0.2, y + h * 0.2, w * 0.6, h * 0.5);
+        ctx.fillRect(x + w * 0.3, y, w * 0.4, h * 0.3);
+        if (bgAnimFrame === 0) {
+            ctx.fillRect(x, y + h * 0.3, w * 0.2, h * 0.3);
+            ctx.fillRect(x + w * 0.8, y + h * 0.3, w * 0.2, h * 0.3);
+        } else {
+            ctx.fillRect(x, y + h * 0.15, w * 0.2, h * 0.3);
+            ctx.fillRect(x + w * 0.8, y + h * 0.15, w * 0.2, h * 0.3);
+        }
+    }
+    ctx.globalAlpha = 1;
+
+    // === TITLE with NEON GLOW ===
+    const titleY = 90;
+    const glowIntensity = titleGlow;
+
+    // Outer glow layers
+    ctx.save();
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 40 * glowIntensity;
+    ctx.font = 'bold 52px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, 100);
+    ctx.fillStyle = `rgba(0, 255, 0, ${0.3 * glowIntensity})`;
+    ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, titleY);
+    ctx.restore();
 
-    // Mystery UFO with points
+    // Inner glow
+    ctx.save();
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 15;
+    ctx.font = 'bold 52px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#00ff44';
+    ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, titleY);
+    ctx.restore();
+
+    // Main title text
+    ctx.font = 'bold 52px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('SPACE INVADERS', CANVAS_WIDTH / 2, titleY);
+
+    // Subtitle with retro feel
+    ctx.font = '14px "Courier New", monospace';
+    ctx.fillStyle = '#00ffaa';
+    ctx.fillText('< DEFEND EARTH FROM THE ALIEN INVASION >', CANVAS_WIDTH / 2, titleY + 25);
+
+    // === SCORE TABLE PANEL ===
+    const panelY = 140;
+    const panelHeight = 160;
+
+    // Panel background with border
+    ctx.fillStyle = 'rgba(0, 30, 0, 0.6)';
+    ctx.fillRect(200, panelY, 400, panelHeight);
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(200, panelY, 400, panelHeight);
+
+    // Corner decorations
+    const cornerSize = 8;
+    ctx.fillStyle = '#00ff00';
+    // Top-left
+    ctx.fillRect(200, panelY, cornerSize, 2);
+    ctx.fillRect(200, panelY, 2, cornerSize);
+    // Top-right
+    ctx.fillRect(600 - cornerSize, panelY, cornerSize, 2);
+    ctx.fillRect(598, panelY, 2, cornerSize);
+    // Bottom-left
+    ctx.fillRect(200, panelY + panelHeight - 2, cornerSize, 2);
+    ctx.fillRect(200, panelY + panelHeight - cornerSize, 2, cornerSize);
+    // Bottom-right
+    ctx.fillRect(600 - cornerSize, panelY + panelHeight - 2, cornerSize, 2);
+    ctx.fillRect(598, panelY + panelHeight - cornerSize, 2, cornerSize);
+
+    // Score table header
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.fillStyle = '#ffff00';
+    ctx.fillText('*SCORE ADVANCE TABLE*', CANVAS_WIDTH / 2, panelY + 25);
+
+    // Mystery ship
     ctx.fillStyle = '#ff00ff';
-    ctx.font = '20px Courier New';
-    ctx.fillText('=*= MYSTERY = ??? PTS', CANVAS_WIDTH / 2, 180);
-
-    // Draw sample invaders with point values
-    const startX = CANVAS_WIDTH / 2 - 120;
-    let yPos = 230;
-
-    // Top row invader (30 points) - row 0 styling
-    const invader1 = { x: startX, y: yPos, width: 30, height: 22, alive: true, row: 0 };
-    drawInvader(invader1);
+    ctx.save();
+    ctx.shadowColor = '#ff00ff';
+    ctx.shadowBlur = 10;
+    // Draw mini UFO
+    const ufoX = 280;
+    const ufoY = panelY + 48;
+    ctx.beginPath();
+    ctx.ellipse(ufoX + 20, ufoY + 8, 18, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(ufoX + 20, ufoY + 4, 8, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '20px Courier New';
+    ctx.font = '16px "Courier New", monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('= 30 POINTS', startX + 50, yPos + 15);
+    ctx.fillText('= ? MYSTERY', 320, panelY + 55);
 
-    // Middle row invader (20 points) - row 2 styling
-    yPos += 50;
-    const invader2 = { x: startX, y: yPos, width: 30, height: 22, alive: true, row: 2 };
-    drawInvader(invader2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('= 20 POINTS', startX + 50, yPos + 15);
+    // Invader types with animated frames
+    const invTypes = [
+        { row: 0, points: 30, color: '#ff3333', y: panelY + 80 },
+        { row: 2, points: 20, color: '#ffff33', y: panelY + 110 },
+        { row: 4, points: 10, color: '#33ffff', y: panelY + 140 }
+    ];
 
-    // Bottom row invader (10 points) - row 4 styling
-    yPos += 50;
-    const invader3 = { x: startX, y: yPos, width: 30, height: 22, alive: true, row: 4 };
-    drawInvader(invader3);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('= 10 POINTS', startX + 50, yPos + 15);
+    const menuAnimFrame = bgAnimFrame; // Sync with background
 
-    // Difficulty selection
-    yPos += 70;
-    ctx.font = '20px Courier New';
+    for (const inv of invTypes) {
+        const x = 280;
+        const y = inv.y;
+        const w = 28;
+        const h = 20;
+
+        ctx.fillStyle = inv.color;
+        ctx.save();
+        ctx.shadowColor = inv.color;
+        ctx.shadowBlur = 8;
+
+        // Invader body
+        ctx.fillRect(x + w * 0.2, y + h * 0.2, w * 0.6, h * 0.5);
+        ctx.fillRect(x + w * 0.3, y, w * 0.4, h * 0.3);
+        // Arms (animated)
+        if (menuAnimFrame === 0) {
+            ctx.fillRect(x, y + h * 0.3, w * 0.2, h * 0.25);
+            ctx.fillRect(x + w * 0.8, y + h * 0.3, w * 0.2, h * 0.25);
+            ctx.fillRect(x + w * 0.1, y + h * 0.7, w * 0.2, h * 0.3);
+            ctx.fillRect(x + w * 0.7, y + h * 0.7, w * 0.2, h * 0.3);
+        } else {
+            ctx.fillRect(x, y + h * 0.15, w * 0.2, h * 0.25);
+            ctx.fillRect(x + w * 0.8, y + h * 0.15, w * 0.2, h * 0.25);
+            ctx.fillRect(x + w * 0.2, y + h * 0.7, w * 0.2, h * 0.3);
+            ctx.fillRect(x + w * 0.6, y + h * 0.7, w * 0.2, h * 0.3);
+        }
+        ctx.restore();
+
+        // Eyes
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x + w * 0.35, y + h * 0.08, w * 0.08, h * 0.1);
+        ctx.fillRect(x + w * 0.55, y + h * 0.08, w * 0.08, h * 0.1);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`= ${inv.points} POINTS`, 320, y + 15);
+    }
+
+    // === DIFFICULTY SELECTOR ===
+    const diffY = 320;
+
+    ctx.font = '14px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#888888';
-    ctx.fillText('DIFFICULTY', CANVAS_WIDTH / 2, yPos);
+    ctx.fillText('SELECT DIFFICULTY', CANVAS_WIDTH / 2, diffY);
 
-    yPos += 35;
-    for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
-        const diff = DIFFICULTIES[DIFFICULTY_ORDER[i]];
-        const isSelected = i === selectedDifficultyIndex;
+    // Difficulty options in a row
+    const diffOptions = [
+        { key: 'easy', label: 'EASY', color: '#00ff00', x: 280 },
+        { key: 'normal', label: 'NORMAL', color: '#ffff00', x: 400 },
+        { key: 'hard', label: 'HARD', color: '#ff0000', x: 520 }
+    ];
+
+    ctx.font = 'bold 18px "Courier New", monospace';
+    for (let i = 0; i < diffOptions.length; i++) {
+        const opt = diffOptions[i];
+        const isSelected = DIFFICULTY_ORDER[selectedDifficultyIndex] === opt.key;
 
         if (isSelected) {
-            // Highlight selected difficulty
-            ctx.fillStyle = DIFFICULTY_ORDER[i] === 'easy' ? '#00ff00' :
-                           DIFFICULTY_ORDER[i] === 'hard' ? '#ff0000' : '#ffff00';
-            ctx.fillText(`> ${diff.name} <`, CANVAS_WIDTH / 2, yPos);
+            // Glowing selected option
+            ctx.save();
+            ctx.shadowColor = opt.color;
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = opt.color;
+            ctx.fillText(opt.label, opt.x, diffY + 30);
+            ctx.restore();
+
+            // Selection brackets with pulse
+            const pulse = Math.sin(startScreenTime / 150) * 0.3 + 0.7;
+            ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+            ctx.fillText('[', opt.x - ctx.measureText(opt.label).width / 2 - 15, diffY + 30);
+            ctx.fillText(']', opt.x + ctx.measureText(opt.label).width / 2 + 10, diffY + 30);
         } else {
-            ctx.fillStyle = '#666666';
-            ctx.fillText(diff.name, CANVAS_WIDTH / 2, yPos);
+            ctx.fillStyle = '#444444';
+            ctx.fillText(opt.label, opt.x, diffY + 30);
         }
-        yPos += 25;
     }
 
     // Arrow key hint
-    yPos += 10;
-    ctx.fillStyle = '#666666';
-    ctx.font = '14px Courier New';
-    ctx.fillText('USE UP/DOWN TO SELECT', CANVAS_WIDTH / 2, yPos);
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = '#555555';
+    ctx.fillText('< LEFT / RIGHT >', CANVAS_WIDTH / 2, diffY + 55);
 
-    // High Score
-    yPos += 40;
+    // === HIGH SCORE ===
+    ctx.font = 'bold 20px "Courier New", monospace';
+    ctx.save();
+    ctx.shadowColor = '#ffff00';
+    ctx.shadowBlur = 10;
     ctx.fillStyle = '#ffff00';
-    ctx.font = '24px Courier New';
-    ctx.fillText(`HIGH SCORE: ${highScore}`, CANVAS_WIDTH / 2, yPos);
+    ctx.fillText(`HIGH SCORE: ${highScore}`, CANVAS_WIDTH / 2, 400);
+    ctx.restore();
 
-    // Instructions
-    yPos += 50;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 28px Courier New';
-    ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, yPos);
+    // === PRESS START (blinking) ===
+    const blink = Math.sin(startScreenTime / 300) > 0;
+    if (blink) {
+        ctx.font = 'bold 24px "Courier New", monospace';
+        ctx.save();
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#00ffff';
+        ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, 450);
+        ctx.restore();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('PRESS ENTER TO START', CANVAS_WIDTH / 2, 450);
+    }
+
+    // === CONTROLS INFO ===
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = '#444444';
+    ctx.fillText('MOVE: ARROWS / WASD    FIRE: SPACE', CANVAS_WIDTH / 2, 490);
+
+    // === CRT SCANLINES OVERLAY ===
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    for (let y = 0; y < CANVAS_HEIGHT; y += 4) {
+        ctx.fillRect(0, y, CANVAS_WIDTH, 2);
+    }
+
+    // === VIGNETTE EFFECT ===
+    const vignetteGrad = ctx.createRadialGradient(
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_HEIGHT * 0.3,
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_HEIGHT * 0.8
+    );
+    vignetteGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignetteGrad.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+    ctx.fillStyle = vignetteGrad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // === SCREEN BORDER (arcade cabinet feel) ===
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(10, 10, CANVAS_WIDTH - 20, CANVAS_HEIGHT - 20);
+
+    // Inner border glow
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(15, 15, CANVAS_WIDTH - 30, CANVAS_HEIGHT - 30);
 
     ctx.textAlign = 'left';
 }
