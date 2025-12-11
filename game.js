@@ -10,6 +10,12 @@ let frameCount = 0;
 let fpsTime = 0;
 let currentFPS = 0;
 
+// Game state
+let gameState = 'playing'; // 'playing', 'gameover', 'victory'
+let playerHit = false;
+let playerHitTimer = 0;
+const PLAYER_HIT_FLASH_DURATION = 200;
+
 // Input state
 const keys = {
     left: false,
@@ -37,6 +43,10 @@ const INVADER_FIRE_INTERVAL = 1500; // ms between invader shots
 const playerBullets = [];
 const invaderBullets = [];
 let invaderFireTimer = 0;
+
+// Explosion particles
+const explosions = [];
+const EXPLOSION_DURATION = 300;
 
 // Invader fleet configuration
 const INVADER_ROWS = 5;
@@ -113,7 +123,12 @@ function drawFPS() {
 }
 
 function drawPlayer() {
-    ctx.fillStyle = '#33ff33';
+    // Flash white when hit
+    if (playerHit) {
+        ctx.fillStyle = '#ffffff';
+    } else {
+        ctx.fillStyle = '#33ff33';
+    }
 
     // Draw ship body (rectangle)
     ctx.fillRect(player.x, player.y + 10, player.width, player.height - 10);
@@ -180,6 +195,43 @@ function drawBullets() {
     }
 }
 
+function drawExplosions() {
+    for (const explosion of explosions) {
+        const progress = explosion.timer / EXPLOSION_DURATION;
+        const alpha = 1 - progress;
+        const size = 20 + progress * 30;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        // Draw explosion burst
+        ctx.fillStyle = '#ffff00';
+        ctx.beginPath();
+        ctx.arc(explosion.x, explosion.y, size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ff6600';
+        ctx.beginPath();
+        ctx.arc(explosion.x, explosion.y, size * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(explosion.x, explosion.y, size * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+function createExplosion(x, y) {
+    explosions.push({
+        x: x,
+        y: y,
+        timer: 0
+    });
+}
+
 function getFleetBounds() {
     let minX = CANVAS_WIDTH;
     let maxX = 0;
@@ -215,6 +267,14 @@ function getBottomInvaders() {
     return bottomInvaders;
 }
 
+// AABB collision detection
+function checkCollision(a, b) {
+    return a.x < b.x + b.width &&
+           a.x + a.width > b.x &&
+           a.y < b.y + b.height &&
+           a.y + a.height > b.y;
+}
+
 function playerShoot() {
     // Classic: only one bullet at a time
     if (playerBullets.length > 0) return;
@@ -244,6 +304,70 @@ function invaderShoot() {
     });
 }
 
+function updateExplosions(dt) {
+    for (let i = explosions.length - 1; i >= 0; i--) {
+        explosions[i].timer += dt;
+        if (explosions[i].timer >= EXPLOSION_DURATION) {
+            explosions.splice(i, 1);
+        }
+    }
+}
+
+function updateCollisions() {
+    // Player bullets vs invaders
+    for (let i = playerBullets.length - 1; i >= 0; i--) {
+        const bullet = playerBullets[i];
+
+        for (const invader of invaders) {
+            if (invader.alive && checkCollision(bullet, invader)) {
+                // Hit!
+                invader.alive = false;
+                aliveInvaders--;
+                playerBullets.splice(i, 1);
+
+                // Create explosion at invader center
+                createExplosion(
+                    invader.x + invader.width / 2,
+                    invader.y + invader.height / 2
+                );
+
+                // Check for victory
+                if (aliveInvaders === 0) {
+                    gameState = 'victory';
+                }
+
+                break; // Bullet can only hit one invader
+            }
+        }
+    }
+
+    // Invader bullets vs player
+    for (let i = invaderBullets.length - 1; i >= 0; i--) {
+        const bullet = invaderBullets[i];
+
+        if (checkCollision(bullet, player)) {
+            // Player hit!
+            invaderBullets.splice(i, 1);
+            playerHit = true;
+            playerHitTimer = 0;
+
+            // For now, just flash - lives system will come in story #7
+            createExplosion(
+                player.x + player.width / 2,
+                player.y + player.height / 2
+            );
+        }
+    }
+
+    // Check if invaders reached player level
+    for (const invader of invaders) {
+        if (invader.alive && invader.y + invader.height >= player.y) {
+            gameState = 'gameover';
+            break;
+        }
+    }
+}
+
 function updateBullets(dt) {
     const dtSeconds = dt / 1000;
 
@@ -269,6 +393,8 @@ function updateBullets(dt) {
 }
 
 function updateInvaders(dt) {
+    if (gameState !== 'playing') return;
+
     // Calculate current speed based on remaining invaders
     const speedMultiplier = 1 + ((totalInvaders - aliveInvaders) / totalInvaders) * 2;
     const currentSpeed = INVADER_BASE_SPEED * speedMultiplier;
@@ -305,6 +431,8 @@ function updateInvaders(dt) {
 }
 
 function updatePlayer(dt) {
+    if (gameState !== 'playing') return;
+
     const moveAmount = player.speed * (dt / 1000);
 
     if (keys.left) {
@@ -327,12 +455,22 @@ function updatePlayer(dt) {
         playerShoot();
         keys.shoot = false; // Require re-press for next shot
     }
+
+    // Player hit flash timer
+    if (playerHit) {
+        playerHitTimer += dt;
+        if (playerHitTimer >= PLAYER_HIT_FLASH_DURATION) {
+            playerHit = false;
+        }
+    }
 }
 
 function update(deltaTime) {
     updatePlayer(deltaTime);
     updateInvaders(deltaTime);
     updateBullets(deltaTime);
+    updateCollisions();
+    updateExplosions(deltaTime);
 }
 
 function render() {
@@ -340,7 +478,27 @@ function render() {
     drawInvaders();
     drawPlayer();
     drawBullets();
+    drawExplosions();
     drawFPS();
+
+    // Draw game state messages
+    if (gameState === 'gameover') {
+        ctx.fillStyle = '#ff0000';
+        ctx.font = '48px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        ctx.font = '20px Courier New';
+        ctx.fillText('Invaders reached Earth!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+        ctx.textAlign = 'left';
+    } else if (gameState === 'victory') {
+        ctx.fillStyle = '#33ff33';
+        ctx.font = '48px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('VICTORY!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        ctx.font = '20px Courier New';
+        ctx.fillText('All invaders destroyed!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+        ctx.textAlign = 'left';
+    }
 }
 
 function gameLoop(timestamp) {
